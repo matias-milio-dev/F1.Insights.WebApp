@@ -3,6 +3,9 @@ using F1.Insights.App.Domain.Entities;
 
 namespace F1.Insights.App.Infrastructure.Drivers;
 
+/// <summary>
+/// Retrieves driver data from the OpenF1 drivers endpoint.
+/// </summary>
 public sealed class DriversClient(IApiClient apiClient) : IDriversClient
 {
     public async Task<IReadOnlyList<Driver>> GetByDriverNumberAndSessionKeyAsync(

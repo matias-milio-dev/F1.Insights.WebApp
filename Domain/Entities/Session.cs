@@ -1,5 +1,8 @@
 namespace F1.Insights.App.Domain.Entities;
 
+/// <summary>
+/// Represents a Formula 1 session.
+/// </summary>
 public sealed record Session(
     int CircuitKey,
     string CircuitShortName,

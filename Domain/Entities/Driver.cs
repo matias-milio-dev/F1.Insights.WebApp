@@ -1,5 +1,8 @@
 namespace F1.Insights.App.Domain.Entities;
 
+/// <summary>
+/// Represents a Formula 1 driver in a specific session context.
+/// </summary>
 public sealed record Driver(
     string BroadcastName,
     int DriverNumber,

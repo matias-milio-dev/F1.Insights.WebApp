@@ -1,0 +1,200 @@
+@page "/"
+@inject IGrandPrixSelectionService GrandPrixSelectionService
+
+<PageTitle>F1 Insights | Grand Prix Selector</PageTitle>
+
+<div class="gp-page">
+    <div class="gp-card">
+        <header class="gp-header">
+            <h1>F1 Insights</h1>
+            <p>Select a Grand Prix and session.</p>
+        </header>
+
+        <div class="gp-controls">
+            <label for="year-select">Year</label>
+            <select id="year-select"
+                    class="form-select"
+                    value="@SelectedYear"
+                    @onchange="HandleYearChanged"
+                    disabled="@IsLoadingMeetings">
+                @foreach (var year in AvailableYears)
+                {
+                    <option value="@year">@year</option>
+                }
+            </select>
+
+            <label for="meeting-select">Grand Prix</label>
+            <select id="meeting-select"
+                    class="form-select"
+                    value="@SelectedMeetingKey"
+                    @onchange="HandleMeetingChanged"
+                    disabled="@IsLoadingMeetings">
+                @if (Meetings.Count == 0)
+                {
+                    <option value="">No meetings found</option>
+                }
+                else
+                {
+                    @foreach (var meeting in Meetings)
+                    {
+                        <option value="@meeting.MeetingKey">@meeting.Label (@meeting.Year)</option>
+                    }
+                }
+            </select>
+
+            <label for="session-select">Session</label>
+            <select id="session-select"
+                    class="form-select"
+                    value="@SelectedSessionKey"
+                    @onchange="HandleSessionChanged"
+                    disabled="@(IsLoadingSessions || SessionOptions.Count == 0)">
+                @if (SessionOptions.Count == 0)
+                {
+                    <option value="">No matching sessions</option>
+                }
+                else
+                {
+                    @foreach (var session in SessionOptions)
+                    {
+                        <option value="@session.SessionKey">@session.Label</option>
+                    }
+                }
+            </select>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="gp-error">@ErrorMessage</div>
+        }
+
+        @if (SelectedMeeting is not null && SelectedSession is not null)
+        {
+            <section class="gp-summary">
+                <h2>Selection</h2>
+                <p><strong>Grand Prix:</strong> @SelectedMeeting.Label</p>
+                <p><strong>Session:</strong> @SelectedSession.Label</p>
+                <p><strong>Starts:</strong> @SelectedSession.DateStart.LocalDateTime.ToString("f")</p>
+            </section>
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly IReadOnlyList<int> AvailableYears =
+        Enumerable.Range(2018, DateTime.UtcNow.Year - 2018 + 1)
+            .Reverse()
+            .ToArray();
+
+    private IReadOnlyList<GrandPrixOption> Meetings { get; set; } = [];
+    private IReadOnlyList<SessionOption> SessionOptions { get; set; } = [];
+
+    private int SelectedYear { get; set; } = DateTime.UtcNow.AddYears(-1).Year;
+    private int? SelectedMeetingKey { get; set; }
+    private int? SelectedSessionKey { get; set; }
+
+    private bool IsLoadingMeetings { get; set; }
+    private bool IsLoadingSessions { get; set; }
+
+    private string? ErrorMessage { get; set; }
+
+    private GrandPrixOption? SelectedMeeting =>
+        SelectedMeetingKey is int meetingKey
+            ? Meetings.FirstOrDefault(meeting => meeting.MeetingKey == meetingKey)
+            : null;
+
+    private SessionOption? SelectedSession =>
+        SelectedSessionKey is int sessionKey
+            ? SessionOptions.FirstOrDefault(session => session.SessionKey == sessionKey)
+            : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMeetingsAsync();
+    }
+
+    private async Task LoadMeetingsAsync()
+    {
+        try
+        {
+            ErrorMessage = null;
+            IsLoadingMeetings = true;
+            Meetings = await GrandPrixSelectionService.GetGrandPrixOptionsAsync(SelectedYear);
+
+            SelectedMeetingKey = Meetings.FirstOrDefault()?.MeetingKey;
+
+            if (SelectedMeetingKey is int meetingKey)
+            {
+                await LoadSessionsAsync(meetingKey);
+            }
+            else
+            {
+                SessionOptions = [];
+                SelectedSessionKey = null;
+            }
+        }
+        catch
+        {
+            ErrorMessage = "Unable to load Grand Prix meetings.";
+        }
+        finally
+        {
+            IsLoadingMeetings = false;
+        }
+    }
+
+    private async Task HandleYearChanged(ChangeEventArgs eventArgs)
+    {
+        if (!int.TryParse(eventArgs.Value?.ToString(), out var year))
+        {
+            return;
+        }
+
+        SelectedYear = year;
+        await LoadMeetingsAsync();
+    }
+
+    private async Task LoadSessionsAsync(int meetingKey)
+    {
+        try
+        {
+            ErrorMessage = null;
+            IsLoadingSessions = true;
+            SessionOptions = await GrandPrixSelectionService.GetSessionOptionsAsync(meetingKey);
+            SelectedSessionKey = SessionOptions.FirstOrDefault()?.SessionKey;
+        }
+        catch
+        {
+            ErrorMessage = "Unable to load sessions for the selected Grand Prix.";
+            SessionOptions = [];
+            SelectedSessionKey = null;
+        }
+        finally
+        {
+            IsLoadingSessions = false;
+        }
+    }
+
+    private async Task HandleMeetingChanged(ChangeEventArgs eventArgs)
+    {
+        if (!int.TryParse(eventArgs.Value?.ToString(), out var meetingKey))
+        {
+            SelectedMeetingKey = null;
+            SessionOptions = [];
+            SelectedSessionKey = null;
+            return;
+        }
+
+        SelectedMeetingKey = meetingKey;
+        await LoadSessionsAsync(meetingKey);
+    }
+
+    private Task HandleSessionChanged(ChangeEventArgs eventArgs)
+    {
+        if (int.TryParse(eventArgs.Value?.ToString(), out var sessionKey))
+        {
+            SelectedSessionKey = sessionKey;
+        }
+
+        return Task.CompletedTask;
+    }
+}

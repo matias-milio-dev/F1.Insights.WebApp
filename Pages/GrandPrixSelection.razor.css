@@ -1,0 +1,82 @@
+.gp-page {
+    min-height: 100vh;
+    background: linear-gradient(145deg, #0d0d0d 0%, #1a1a1a 45%, #c8102e 100%);
+    padding: 2rem 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.gp-card {
+    width: min(680px, 100%);
+    border-radius: 16px;
+    background-color: rgba(10, 10, 10, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    padding: 1.5rem;
+    color: #f4f4f4;
+}
+
+.gp-header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #ff1e3c;
+}
+
+.gp-header p {
+    margin-top: 0.4rem;
+    margin-bottom: 1.2rem;
+    color: #d0d0d0;
+}
+
+.gp-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+}
+
+.gp-controls label {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin-top: 0.4rem;
+}
+
+.gp-controls .form-select {
+    border-radius: 10px;
+    background-color: #111;
+    color: #f4f4f4;
+    border: 1px solid #383838;
+}
+
+.gp-controls .form-select:focus {
+    border-color: #ff1e3c;
+    box-shadow: 0 0 0 0.2rem rgba(255, 30, 60, 0.2);
+}
+
+.gp-summary {
+    margin-top: 1.25rem;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 30, 60, 0.35);
+    background-color: rgba(255, 30, 60, 0.08);
+    padding: 1rem;
+}
+
+.gp-summary h2 {
+    margin-top: 0;
+    font-size: 1.1rem;
+    color: #ff4a62;
+}
+
+.gp-summary p {
+    margin: 0.35rem 0;
+}
+
+.gp-error {
+    margin-top: 1rem;
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    background-color: rgba(200, 16, 46, 0.2);
+    color: #ffd9df;
+    border: 1px solid rgba(200, 16, 46, 0.45);
+}

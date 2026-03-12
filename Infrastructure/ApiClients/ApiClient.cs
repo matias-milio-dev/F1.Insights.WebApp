@@ -2,6 +2,9 @@
 
 namespace F1.Insights.App.Infrastructure.ApiClients;
 
+/// <summary>
+/// Provides generic HTTP access to OpenF1 endpoints.
+/// </summary>
 public class ApiClient(IHttpClientFactory httpClientFactory) : IApiClient
 {
     private const string OpenF1ClientName = "OpenF1";

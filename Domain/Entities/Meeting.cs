@@ -1,5 +1,8 @@
 namespace F1.Insights.App.Domain.Entities;
 
+/// <summary>
+/// Represents a Formula 1 meeting event.
+/// </summary>
 public sealed record Meeting(
     int CircuitKey,
     string CircuitInfoUrl,

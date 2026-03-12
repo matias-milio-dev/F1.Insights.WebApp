@@ -3,8 +3,20 @@ using F1.Insights.App.Infrastructure.ApiClients;
 
 namespace F1.Insights.App.Infrastructure.Meetings;
 
+/// <summary>
+/// Retrieves meeting data from the OpenF1 meetings endpoint.
+/// </summary>
 public sealed class MeetingsClient(IApiClient apiClient) : IMeetingsClient
 {
+    public async Task<IReadOnlyList<Meeting>> GetByYearAsync(
+        int year,
+        CancellationToken cancellationToken = default)
+    {
+        var endpoint = $"meetings?year={year}";
+
+        return await GetMeetingsAsync(endpoint, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Meeting>> GetByYearAndCountryAsync(
         int year,
         string countryName,
@@ -14,6 +26,11 @@ public sealed class MeetingsClient(IApiClient apiClient) : IMeetingsClient
 
         var endpoint = $"meetings?year={year}&country_name={Uri.EscapeDataString(countryName)}";
 
+        return await GetMeetingsAsync(endpoint, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<Meeting>> GetMeetingsAsync(string endpoint, CancellationToken cancellationToken)
+    {
         var response = await apiClient.GetAsync<List<MeetingApiResponse>>(endpoint, cancellationToken)
             ?? [];
 

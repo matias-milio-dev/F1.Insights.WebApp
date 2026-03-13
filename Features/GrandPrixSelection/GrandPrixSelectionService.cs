@@ -3,6 +3,7 @@ using F1.Insights.App.Infrastructure.Meetings;
 using F1.Insights.App.Infrastructure.Pit;
 using F1.Insights.App.Infrastructure.Results;
 using F1.Insights.App.Infrastructure.Sessions;
+using System.Globalization;
 
 namespace F1.Insights.App.Features.GrandPrixSelection;
 
@@ -31,6 +32,34 @@ public sealed class GrandPrixSelectionService(
             ["haas"] = "B6BABD"
         };
 
+    private static readonly IReadOnlyDictionary<string, string> CountryFlagByCountryName =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Australia"] = "🇦🇺",
+            ["Bahrain"] = "🇧🇭",
+            ["Saudi Arabia"] = "🇸🇦",
+            ["Japan"] = "🇯🇵",
+            ["China"] = "🇨🇳",
+            ["United States"] = "🇺🇸",
+            ["Italy"] = "🇮🇹",
+            ["Monaco"] = "🇲🇨",
+            ["Canada"] = "🇨🇦",
+            ["Spain"] = "🇪🇸",
+            ["Austria"] = "🇦🇹",
+            ["United Kingdom"] = "🇬🇧",
+            ["Hungary"] = "🇭🇺",
+            ["Belgium"] = "🇧🇪",
+            ["Netherlands"] = "🇳🇱",
+            ["Azerbaijan"] = "🇦🇿",
+            ["Singapore"] = "🇸🇬",
+            ["Mexico"] = "🇲🇽",
+            ["Brazil"] = "🇧🇷",
+            ["Qatar"] = "🇶🇦",
+            ["United Arab Emirates"] = "🇦🇪",
+            ["France"] = "🇫🇷",
+            ["Germany"] = "🇩🇪"
+        };
+
     public async Task<IReadOnlyList<GrandPrixOption>> GetGrandPrixOptionsAsync(
         int year,
         CancellationToken cancellationToken = default)
@@ -43,6 +72,7 @@ public sealed class GrandPrixSelectionService(
                 meeting.Round,
                 meeting.RaceName,
                 meeting.CountryName,
+                ResolveCountryFlag(meeting.CountryName),
                 meeting.Year))];
     }
 
@@ -70,20 +100,9 @@ public sealed class GrandPrixSelectionService(
         int round,
         CancellationToken cancellationToken = default)
     {
-        var lapsTask = lapsClient.GetByYearAndRoundAsync(year, round, cancellationToken);
-        var pitStopsTask = pitStopClient.GetByYearAndRoundAsync(year, round, cancellationToken);
-        var resultsTask = resultsClient.GetByYearAndRoundAsync(year, round, cancellationToken);
+        var context = await GetRaceContextAsync(year, round, cancellationToken);
 
-        await Task.WhenAll(lapsTask, pitStopsTask, resultsTask);
-
-        var laps = await lapsTask;
-        var pitStops = await pitStopsTask;
-        var results = await resultsTask;
-
-        var resultsByDriverId = results.ToDictionary(result => result.DriverId, StringComparer.OrdinalIgnoreCase);
-        var pitStopsByDriverId = pitStops.ToLookup(pit => pit.DriverId, StringComparer.OrdinalIgnoreCase);
-
-        return [.. laps
+        return [.. context.Laps
             .Where(static lap => !string.IsNullOrWhiteSpace(lap.DriverId) && lap.LapDuration > 0)
             .GroupBy(lap => lap.DriverId, StringComparer.OrdinalIgnoreCase)
             .Select(static lapGroup => lapGroup
@@ -93,8 +112,8 @@ public sealed class GrandPrixSelectionService(
             .OrderBy(lap => lap.LapDuration)
             .Select(lap =>
             {
-                var hasResult = resultsByDriverId.TryGetValue(lap.DriverId, out var result);
-                var stopCount = pitStopsByDriverId[lap.DriverId].Count();
+                var hasResult = context.ResultsByDriverId.TryGetValue(lap.DriverId, out var result);
+                var stopCount = context.PitStopsByDriverId[lap.DriverId].Count();
 
                 return new DriverFastestLap(
                     hasResult ? result!.DriverNumber ?? 0 : 0,
@@ -107,8 +126,156 @@ public sealed class GrandPrixSelectionService(
             })];
     }
 
+    public async Task<IReadOnlyList<DuelDriverStats>> GetDuelCandidatesAsync(
+        int year,
+        int round,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await GetRaceContextAsync(year, round, cancellationToken);
+
+        return [.. context.Results
+            .OrderBy(result => result.Position)
+            .Select(result =>
+            {
+                var laps = context.LapsByDriverId[result.DriverId]
+                    .Where(lap => lap.LapDuration > 0)
+                    .Select(lap => lap.LapDuration)
+                    .ToArray();
+
+                return new DuelDriverStats(
+                    result.DriverId,
+                    string.IsNullOrWhiteSpace(result.DriverCode) ? result.DriverName : result.DriverCode,
+                    result.TeamName,
+                    ResolveTeamColor(result.ConstructorId),
+                    result.Position,
+                    laps.Length > 0 ? laps.Min() : null,
+                    laps.Length > 0 ? laps.Average() : null,
+                    context.PitStopsByDriverId[result.DriverId].Count());
+            })];
+    }
+
+    public async Task<IReadOnlyList<DriverPositionPoint>> GetRaceHistoryAsync(
+        int year,
+        int round,
+        string driverId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(driverId))
+        {
+            return [];
+        }
+
+        var context = await GetRaceContextAsync(year, round, cancellationToken);
+
+        return [.. context.LapsByDriverId[driverId]
+            .Where(lap => lap.Position is > 0)
+            .OrderBy(lap => lap.LapNumber)
+            .Select(lap => new DriverPositionPoint(lap.LapNumber, lap.Position!.Value))];
+    }
+
+    public async Task<PaceDistribution?> GetPaceDistributionAsync(
+        int year,
+        int round,
+        string driverId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(driverId))
+        {
+            return null;
+        }
+
+        var context = await GetRaceContextAsync(year, round, cancellationToken);
+
+        if (!context.ResultsByDriverId.TryGetValue(driverId, out var result))
+        {
+            return null;
+        }
+
+        var lapTimes = context.LapsByDriverId[driverId]
+            .Where(lap => lap.LapDuration > 0)
+            .Select(lap => lap.LapDuration)
+            .OrderBy(lap => lap)
+            .ToArray();
+
+        if (lapTimes.Length == 0)
+        {
+            return null;
+        }
+
+        var q1 = GetPercentile(lapTimes, 0.25);
+        var median = GetPercentile(lapTimes, 0.5);
+        var q3 = GetPercentile(lapTimes, 0.75);
+
+        var iqr = q3 - q1;
+        var lowerFence = q1 - (1.5 * iqr);
+        var upperFence = q3 + (1.5 * iqr);
+
+        var outlierCount = lapTimes.Count(value => value < lowerFence || value > upperFence);
+
+        return new PaceDistribution(
+            result.DriverId,
+            string.IsNullOrWhiteSpace(result.DriverCode) ? result.DriverName : result.DriverCode,
+            ResolveTeamColor(result.ConstructorId),
+            lapTimes.Min(),
+            q1,
+            median,
+            q3,
+            lapTimes.Max(),
+            outlierCount);
+    }
+
+    private async Task<RaceContext> GetRaceContextAsync(int year, int round, CancellationToken cancellationToken)
+    {
+        var lapsTask = lapsClient.GetByYearAndRoundAsync(year, round, cancellationToken);
+        var pitStopsTask = pitStopClient.GetByYearAndRoundAsync(year, round, cancellationToken);
+        var resultsTask = resultsClient.GetByYearAndRoundAsync(year, round, cancellationToken);
+
+        await Task.WhenAll(lapsTask, pitStopsTask, resultsTask);
+
+        var laps = await lapsTask;
+        var pitStops = await pitStopsTask;
+        var results = await resultsTask;
+
+        return new RaceContext(
+            laps,
+            laps.ToLookup(lap => lap.DriverId, StringComparer.OrdinalIgnoreCase),
+            results,
+            results.ToDictionary(result => result.DriverId, StringComparer.OrdinalIgnoreCase),
+            pitStops.ToLookup(pit => pit.DriverId, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static double GetPercentile(IReadOnlyList<double> sortedValues, double percentile)
+    {
+        if (sortedValues.Count == 1)
+        {
+            return sortedValues[0];
+        }
+
+        var position = (sortedValues.Count - 1) * percentile;
+        var lowerIndex = (int)Math.Floor(position);
+        var upperIndex = (int)Math.Ceiling(position);
+
+        if (lowerIndex == upperIndex)
+        {
+            return sortedValues[lowerIndex];
+        }
+
+        var weight = position - lowerIndex;
+        return sortedValues[lowerIndex] + ((sortedValues[upperIndex] - sortedValues[lowerIndex]) * weight);
+    }
+
+    private static string ResolveCountryFlag(string countryName)
+        => CountryFlagByCountryName.TryGetValue(countryName, out var flag) ? flag : "🏁";
+
     private static string ResolveTeamColor(string constructorId)
         => TeamColorByConstructorId.TryGetValue(constructorId, out var color) ? color : "FFFFFF";
+
+    private sealed record RaceContext(
+        IReadOnlyList<Domain.Entities.Lap> Laps,
+        ILookup<string, Domain.Entities.Lap> LapsByDriverId,
+        IReadOnlyList<Domain.Entities.RaceResult> Results,
+        IReadOnlyDictionary<string, Domain.Entities.RaceResult> ResultsByDriverId,
+        ILookup<string, Domain.Entities.PitStop> PitStopsByDriverId);
 
     private static string ToDisplayLabel(string sessionType)
         => sessionType switch

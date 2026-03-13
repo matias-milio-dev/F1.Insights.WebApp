@@ -7,4 +7,5 @@ public sealed record GrandPrixOption(
     int Round,
     string Label,
     string CountryName,
+    string CountryFlag,
     int Year);

@@ -1,17 +1,18 @@
 @page "/"
 @inject IGrandPrixSelectionService GrandPrixSelectionService
+@using System.Globalization
 
-<PageTitle>F1 Insights | Grand Prix Selector</PageTitle>
+<PageTitle>F1 Insights | Race Dashboard</PageTitle>
 
 <div class="gp-page">
-    <div class="gp-card">
-        <header class="gp-header">
-            <h1>F1 Insights</h1>
-            <p>Select a Grand Prix and session.</p>
-        </header>
+    <header class="gp-header">
+        <div>
+            <h1>F1 Insights Dashboard</h1>
+            <p>Race selector, duel analytics, race history and pace analysis.</p>
+        </div>
 
-        <div class="gp-controls">
-            <label for="year-select">Year</label>
+        <div class="gp-year-control">
+            <label for="year-select">Season</label>
             <select id="year-select"
                     class="form-select"
                     value="@SelectedYear"
@@ -22,121 +23,162 @@
                     <option value="@year">@year</option>
                 }
             </select>
-
-            <label for="meeting-select">Grand Prix</label>
-            <select id="meeting-select"
-                    class="form-select"
-                    value="@SelectedRound"
-                    @onchange="HandleRoundChanged"
-                    disabled="@IsLoadingMeetings">
-                @if (Meetings.Count == 0)
-                {
-                    <option value="">No meetings found</option>
-                }
-                else
-                {
-                    @foreach (var meeting in Meetings)
-                    {
-                        <option value="@meeting.Round">@meeting.Label (@meeting.Year)</option>
-                    }
-                }
-            </select>
-
-            <label for="session-select">Session</label>
-            <select id="session-select"
-                    class="form-select"
-                    value="@SelectedSessionKey"
-                    @onchange="HandleSessionChanged"
-                    disabled="@(IsLoadingSessions || SessionOptions.Count == 0)">
-                @if (SessionOptions.Count == 0)
-                {
-                    <option value="">No matching sessions</option>
-                }
-                else
-                {
-                    @foreach (var session in SessionOptions)
-                    {
-                        <option value="@session.SessionKey">@session.Label</option>
-                    }
-                }
-            </select>
         </div>
+    </header>
 
-        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
-        {
-            <div class="gp-error">@ErrorMessage</div>
-        }
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="gp-error">@ErrorMessage</div>
+    }
 
-        @if (SelectedMeeting is not null && SelectedSession is not null)
-        {
-            <section class="gp-summary">
-                <h2>Selection</h2>
-                <p><strong>Grand Prix:</strong> @SelectedMeeting.Label</p>
-                <p><strong>Session:</strong> @SelectedSession.Label</p>
-                <p><strong>Starts:</strong> @SelectedSession.DateStart.LocalDateTime.ToString("f")</p>
-            </section>
+    <section class="gp-panel">
+        <h2>Race Selector</h2>
+        <div class="gp-race-grid">
+            @foreach (var meeting in Meetings)
+            {
+                <button class="gp-race-card @(SelectedRound == meeting.Round ? "selected" : null)"
+                        @onclick="() => SelectRoundAsync(meeting.Round)">
+                    <div class="gp-flag">@meeting.CountryFlag</div>
+                    <div class="gp-race-name">@meeting.Label</div>
+                    <div class="gp-race-meta">Round @meeting.Round · @meeting.CountryName</div>
+                </button>
+            }
+        </div>
+    </section>
 
-            <section class="gp-leaderboard">
-                <h2>Fastest Lap Leaderboard</h2>
+    @if (SelectedMeeting is not null)
+    {
+        <section class="gp-dashboard-grid">
+            <article class="gp-panel">
+                <h2>The Duel</h2>
+                <div class="gp-duel-selectors">
+                    <select class="form-select" value="@SelectedDriverA" @onchange="HandleDriverAChanged">
+                        @foreach (var driver in DuelCandidates)
+                        {
+                            <option value="@driver.DriverId">@driver.DriverLabel</option>
+                        }
+                    </select>
+                    <select class="form-select" value="@SelectedDriverB" @onchange="HandleDriverBChanged">
+                        @foreach (var driver in DuelCandidates)
+                        {
+                            <option value="@driver.DriverId">@driver.DriverLabel</option>
+                        }
+                    </select>
+                </div>
 
-                @if (IsLoadingLeaderboard)
+                <div class="gp-duel-cards">
+                    @if (DriverAStats is not null)
+                    {
+                        <div class="gp-stat-card" style="@GetCardBorderStyle(DriverAStats.TeamColorHex)">
+                            <h3>@DriverAStats.DriverLabel</h3>
+                            <p><strong>Team:</strong> @DriverAStats.TeamName</p>
+                            <p><strong>Finish:</strong> @FormatPosition(DriverAStats.FinishPosition)</p>
+                            <p><strong>Fastest:</strong> @FormatLapNullable(DriverAStats.FastestLapSeconds)</p>
+                            <p><strong>Average:</strong> @FormatLapNullable(DriverAStats.AverageLapSeconds)</p>
+                            <p><strong>Pit Stops:</strong> @DriverAStats.PitStopCount</p>
+                        </div>
+                    }
+                    @if (DriverBStats is not null)
+                    {
+                        <div class="gp-stat-card" style="@GetCardBorderStyle(DriverBStats.TeamColorHex)">
+                            <h3>@DriverBStats.DriverLabel</h3>
+                            <p><strong>Team:</strong> @DriverBStats.TeamName</p>
+                            <p><strong>Finish:</strong> @FormatPosition(DriverBStats.FinishPosition)</p>
+                            <p><strong>Fastest:</strong> @FormatLapNullable(DriverBStats.FastestLapSeconds)</p>
+                            <p><strong>Average:</strong> @FormatLapNullable(DriverBStats.AverageLapSeconds)</p>
+                            <p><strong>Pit Stops:</strong> @DriverBStats.PitStopCount</p>
+                        </div>
+                    }
+                </div>
+            </article>
+
+            <article class="gp-panel">
+                <h2>Race History (Position vs Lap)</h2>
+                @if (HasHistoryChart)
                 {
-                    <p class="gp-muted">Loading leaderboard...</p>
-                }
-                else if (FastestLaps.Count == 0)
-                {
-                    <p class="gp-muted">No lap data available for this session.</p>
+                    <svg viewBox="0 0 1000 380" class="gp-history-chart" preserveAspectRatio="none">
+                        <polyline points="@GetHistoryPolyline(DriverAHistory)"
+                                  fill="none"
+                                  stroke="@NormalizeHexColour(DriverAStats?.TeamColorHex)"
+                                  stroke-width="4" />
+                        <polyline points="@GetHistoryPolyline(DriverBHistory)"
+                                  fill="none"
+                                  stroke="@NormalizeHexColour(DriverBStats?.TeamColorHex)"
+                                  stroke-width="4"
+                                  stroke-dasharray="12 8" />
+                    </svg>
+                    <div class="gp-legend">
+                        <span><i style="@GetLegendStyle(DriverAStats?.TeamColorHex, false)"></i>@DriverAStats?.DriverLabel</span>
+                        <span><i style="@GetLegendStyle(DriverBStats?.TeamColorHex, true)"></i>@DriverBStats?.DriverLabel</span>
+                    </div>
                 }
                 else
                 {
-                    <div class="table-responsive">
-                        <table class="table table-dark table-striped gp-table">
-                            <thead>
-                                <tr>
-                                    <th scope="col">#</th>
-                                    <th scope="col">Driver</th>
-                                    <th scope="col">Lap Time</th>
-                                    <th scope="col">Compound</th>
-                                    <th scope="col">Lap</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @for (var index = 0; index < FastestLaps.Count; index++)
-                                {
-                                    var lap = FastestLaps[index];
-
-                                    <tr>
-                                        <td>@(index + 1)</td>
-                                        <td>
-                                            <span class="team-dot" style="@GetTeamDotStyle(lap.TeamColourHex)"></span>
-                                            @lap.DriverName
-                                        </td>
-                                        <td>@FormatLapTime(lap.LapTimeSeconds)</td>
-                                        <td>@lap.Compound</td>
-                                        <td>@lap.LapNumber</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <h3>Top 10 Fastest Laps</h3>
-                    <div class="gp-chart">
-                        @foreach (var lap in TopTenFastestLaps)
-                        {
-                            <div class="gp-chart-row">
-                                <div class="gp-chart-label">@lap.DriverName</div>
-                                <div class="gp-chart-bar">
-                                    <div class="gp-chart-fill" style="@GetChartBarStyle(lap)"></div>
-                                </div>
-                                <div class="gp-chart-time">@FormatLapTime(lap.LapTimeSeconds)</div>
-                            </div>
-                        }
-                    </div>
+                    <p class="gp-muted">Not enough lap position data for chart.</p>
                 }
-            </section>
-        }
-    </div>
+            </article>
+
+            <article class="gp-panel">
+                <h2>Pace Analysis (Box Plot)</h2>
+                <div class="gp-boxplot-stack">
+                    @if (DriverAPace is not null)
+                    {
+                        <div class="gp-boxplot-row">
+                            <div class="gp-boxplot-label">@DriverAPace.DriverLabel</div>
+                            <div class="gp-boxplot-track">
+                                <div class="gp-boxplot-whisker" style="@GetWhiskerStyle(DriverAPace)"></div>
+                                <div class="gp-boxplot-box" style="@GetBoxStyle(DriverAPace)"></div>
+                                <div class="gp-boxplot-median" style="@GetMedianStyle(DriverAPace)"></div>
+                            </div>
+                            <div class="gp-boxplot-meta">Outliers: @DriverAPace.OutlierCount</div>
+                        </div>
+                    }
+                    @if (DriverBPace is not null)
+                    {
+                        <div class="gp-boxplot-row">
+                            <div class="gp-boxplot-label">@DriverBPace.DriverLabel</div>
+                            <div class="gp-boxplot-track">
+                                <div class="gp-boxplot-whisker" style="@GetWhiskerStyle(DriverBPace)"></div>
+                                <div class="gp-boxplot-box" style="@GetBoxStyle(DriverBPace)"></div>
+                                <div class="gp-boxplot-median" style="@GetMedianStyle(DriverBPace)"></div>
+                            </div>
+                            <div class="gp-boxplot-meta">Outliers: @DriverBPace.OutlierCount</div>
+                        </div>
+                    }
+                </div>
+            </article>
+
+            <article class="gp-panel gp-span-2">
+                <h2>Fastest Laps</h2>
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped gp-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Driver</th>
+                                <th>Lap Time</th>
+                                <th>Pit</th>
+                                <th>Lap</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var index = 0; index < FastestLaps.Count; index++)
+                            {
+                                var lap = FastestLaps[index];
+                                <tr>
+                                    <td>@(index + 1)</td>
+                                    <td><span class="team-dot" style="@GetTeamDotStyle(lap.TeamColourHex)"></span>@lap.DriverName</td>
+                                    <td>@FormatLapTime(lap.LapTimeSeconds)</td>
+                                    <td>@lap.Compound</td>
+                                    <td>@lap.LapNumber</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+    }
 </div>
 
 @code {
@@ -148,16 +190,23 @@
     private IReadOnlyList<GrandPrixOption> Meetings { get; set; } = [];
     private IReadOnlyList<SessionOption> SessionOptions { get; set; } = [];
     private IReadOnlyList<DriverFastestLap> FastestLaps { get; set; } = [];
+    private IReadOnlyList<DuelDriverStats> DuelCandidates { get; set; } = [];
 
     private int SelectedYear { get; set; } = DateTime.UtcNow.AddYears(-1).Year;
     private int? SelectedRound { get; set; }
     private int? SelectedSessionKey { get; set; }
+    private string? SelectedDriverA { get; set; }
+    private string? SelectedDriverB { get; set; }
 
     private bool IsLoadingMeetings { get; set; }
     private bool IsLoadingSessions { get; set; }
     private bool IsLoadingLeaderboard { get; set; }
 
     private string? ErrorMessage { get; set; }
+    private IReadOnlyList<DriverPositionPoint> DriverAHistory { get; set; } = [];
+    private IReadOnlyList<DriverPositionPoint> DriverBHistory { get; set; } = [];
+    private PaceDistribution? DriverAPace { get; set; }
+    private PaceDistribution? DriverBPace { get; set; }
 
     private GrandPrixOption? SelectedMeeting =>
         SelectedRound is int round
@@ -168,6 +217,18 @@
         SelectedSessionKey is int sessionKey
             ? SessionOptions.FirstOrDefault(session => session.SessionKey == sessionKey)
             : null;
+
+    private DuelDriverStats? DriverAStats =>
+        !string.IsNullOrWhiteSpace(SelectedDriverA)
+            ? DuelCandidates.FirstOrDefault(driver => driver.DriverId == SelectedDriverA)
+            : null;
+
+    private DuelDriverStats? DriverBStats =>
+        !string.IsNullOrWhiteSpace(SelectedDriverB)
+            ? DuelCandidates.FirstOrDefault(driver => driver.DriverId == SelectedDriverB)
+            : null;
+
+    private bool HasHistoryChart => DriverAHistory.Count > 1 || DriverBHistory.Count > 1;
 
     private IReadOnlyList<DriverFastestLap> TopTenFastestLaps => FastestLaps.Take(10).ToArray();
 
@@ -188,7 +249,7 @@
 
             if (SelectedRound is int round)
             {
-                await LoadSessionsAsync(round);
+                await LoadRoundDashboardAsync(round);
             }
             else
             {
@@ -217,7 +278,7 @@
         await LoadMeetingsAsync();
     }
 
-    private async Task LoadSessionsAsync(int round)
+    private async Task LoadRoundDashboardAsync(int round)
     {
         try
         {
@@ -225,22 +286,17 @@
             IsLoadingSessions = true;
             SessionOptions = await GrandPrixSelectionService.GetSessionOptionsAsync(SelectedYear, round);
             SelectedSessionKey = SessionOptions.FirstOrDefault()?.SessionKey;
-
-            if (SelectedRound is int selectedRound)
-            {
-                await LoadLeaderboardAsync(selectedRound);
-            }
-            else
-            {
-                FastestLaps = [];
-            }
+            await LoadLeaderboardAsync(round);
+            await LoadDuelCandidatesAsync(round);
+            await LoadDriverAnalyticsAsync(round);
         }
         catch
         {
-            ErrorMessage = "Unable to load sessions for the selected Grand Prix.";
+            ErrorMessage = "Unable to load dashboard data for the selected Grand Prix.";
             SessionOptions = [];
             SelectedSessionKey = null;
             FastestLaps = [];
+            DuelCandidates = [];
         }
         finally
         {
@@ -259,16 +315,25 @@
         }
 
         SelectedRound = round;
-        await LoadSessionsAsync(round);
+        await LoadRoundDashboardAsync(round);
+    }
+
+    private async Task SelectRoundAsync(int round)
+    {
+        if (SelectedRound == round)
+        {
+            return;
+        }
+
+        SelectedRound = round;
+        await LoadRoundDashboardAsync(round);
     }
 
     private Task HandleSessionChanged(ChangeEventArgs eventArgs)
     {
-        if (int.TryParse(eventArgs.Value?.ToString(), out var sessionKey)
-            && SelectedRound is int round)
+        if (int.TryParse(eventArgs.Value?.ToString(), out var sessionKey))
         {
             SelectedSessionKey = sessionKey;
-            return LoadLeaderboardAsync(round);
         }
 
         return Task.CompletedTask;
@@ -293,6 +358,51 @@
         }
     }
 
+    private async Task LoadDuelCandidatesAsync(int round)
+    {
+        DuelCandidates = await GrandPrixSelectionService.GetDuelCandidatesAsync(SelectedYear, round);
+        SelectedDriverA = DuelCandidates.FirstOrDefault()?.DriverId;
+        SelectedDriverB = DuelCandidates.Skip(1).FirstOrDefault()?.DriverId ?? SelectedDriverA;
+    }
+
+    private async Task HandleDriverAChanged(ChangeEventArgs eventArgs)
+    {
+        SelectedDriverA = eventArgs.Value?.ToString();
+
+        if (SelectedRound is int round)
+        {
+            await LoadDriverAnalyticsAsync(round);
+        }
+    }
+
+    private async Task HandleDriverBChanged(ChangeEventArgs eventArgs)
+    {
+        SelectedDriverB = eventArgs.Value?.ToString();
+
+        if (SelectedRound is int round)
+        {
+            await LoadDriverAnalyticsAsync(round);
+        }
+    }
+
+    private async Task LoadDriverAnalyticsAsync(int round)
+    {
+        if (string.IsNullOrWhiteSpace(SelectedDriverA) || string.IsNullOrWhiteSpace(SelectedDriverB))
+        {
+            DriverAHistory = [];
+            DriverBHistory = [];
+            DriverAPace = null;
+            DriverBPace = null;
+            return;
+        }
+
+        DriverAHistory = await GrandPrixSelectionService.GetRaceHistoryAsync(SelectedYear, round, SelectedDriverA);
+        DriverBHistory = await GrandPrixSelectionService.GetRaceHistoryAsync(SelectedYear, round, SelectedDriverB);
+
+        DriverAPace = await GrandPrixSelectionService.GetPaceDistributionAsync(SelectedYear, round, SelectedDriverA);
+        DriverBPace = await GrandPrixSelectionService.GetPaceDistributionAsync(SelectedYear, round, SelectedDriverB);
+    }
+
     private static string FormatLapTime(double lapTimeSeconds)
     {
         var minutes = (int)(lapTimeSeconds / 60);
@@ -306,6 +416,39 @@
         var hex = NormalizeHexColour(teamColourHex);
         return $"background-color:{hex};";
     }
+
+    private static string GetCardBorderStyle(string teamColorHex)
+        => $"border-color:{NormalizeHexColour(teamColorHex)};";
+
+    private string GetHistoryPolyline(IReadOnlyList<DriverPositionPoint> points)
+    {
+        if (points.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var maxLap = Math.Max(1, Math.Max(DriverAHistory.DefaultIfEmpty(new DriverPositionPoint(1, 1)).Max(point => point.LapNumber),
+            DriverBHistory.DefaultIfEmpty(new DriverPositionPoint(1, 1)).Max(point => point.LapNumber)));
+
+        var maxPosition = Math.Max(20, Math.Max(DriverAHistory.DefaultIfEmpty(new DriverPositionPoint(1, 20)).Max(point => point.Position),
+            DriverBHistory.DefaultIfEmpty(new DriverPositionPoint(1, 20)).Max(point => point.Position)));
+
+        return string.Join(" ", points.Select(point =>
+        {
+            var x = ((double)point.LapNumber / maxLap) * 1000;
+            var y = ((double)(point.Position - 1) / Math.Max(1, maxPosition - 1)) * 360 + 10;
+            return $"{x:0.##},{y:0.##}";
+        }));
+    }
+
+    private static string GetLegendStyle(string? teamColorHex, bool dashed)
+        => $"background:{NormalizeHexColour(teamColorHex)};{(dashed ? "border-top:2px dashed #fff;" : string.Empty)}";
+
+    private static string FormatPosition(int? position)
+        => position is null or <= 0 ? "N/A" : position.Value.ToString(CultureInfo.InvariantCulture);
+
+    private static string FormatLapNullable(double? lap)
+        => lap is null ? "N/A" : FormatLapTime(lap.Value);
 
     private string GetChartBarStyle(DriverFastestLap lap)
     {
@@ -333,6 +476,55 @@
 
         return 40 + (normalized * 60);
     }
+
+    private string GetWhiskerStyle(PaceDistribution pace)
+    {
+        var (globalMin, globalMax) = GetPaceRange();
+        var left = ToPercent(pace.Min, globalMin, globalMax);
+        var right = ToPercent(pace.Max, globalMin, globalMax);
+        return $"left:{left:F2}%;width:{Math.Max(1, right - left):F2}%;background:{NormalizeHexColour(pace.TeamColorHex)};";
+    }
+
+    private string GetBoxStyle(PaceDistribution pace)
+    {
+        var (globalMin, globalMax) = GetPaceRange();
+        var left = ToPercent(pace.Q1, globalMin, globalMax);
+        var right = ToPercent(pace.Q3, globalMin, globalMax);
+        return $"left:{left:F2}%;width:{Math.Max(2, right - left):F2}%;background:{NormalizeHexColour(pace.TeamColorHex)};";
+    }
+
+    private string GetMedianStyle(PaceDistribution pace)
+    {
+        var (globalMin, globalMax) = GetPaceRange();
+        var left = ToPercent(pace.Median, globalMin, globalMax);
+        return $"left:{left:F2}%;";
+    }
+
+    private (double Min, double Max) GetPaceRange()
+    {
+        var samples = new[] { DriverAPace?.Min, DriverAPace?.Max, DriverBPace?.Min, DriverBPace?.Max }
+            .Where(value => value is not null)
+            .Select(value => value!.Value)
+            .ToArray();
+
+        if (samples.Length == 0)
+        {
+            return (0, 1);
+        }
+
+        var min = samples.Min();
+        var max = samples.Max();
+
+        if (Math.Abs(max - min) < double.Epsilon)
+        {
+            return (min, min + 1);
+        }
+
+        return (min, max);
+    }
+
+    private static double ToPercent(double value, double min, double max)
+        => ((value - min) / (max - min)) * 100;
 
     private static string NormalizeHexColour(string? rawHex)
     {

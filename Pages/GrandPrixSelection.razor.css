@@ -1,25 +1,21 @@
 .gp-page {
     min-height: 100vh;
     background: linear-gradient(145deg, #0d0d0d 0%, #1a1a1a 45%, #c8102e 100%);
-    padding: 2rem 1rem;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    padding: 1.25rem 1.25rem 2rem;
+    color: #f4f4f4;
 }
 
-.gp-card {
-    width: min(680px, 100%);
-    border-radius: 16px;
-    background-color: rgba(10, 10, 10, 0.9);
+.gp-panel {
+    border-radius: 14px;
+    background-color: rgba(10, 10, 10, 0.82);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
-    padding: 1.5rem;
-    color: #f4f4f4;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    padding: 1rem;
 }
 
 .gp-header h1 {
     margin: 0;
-    font-size: 1.8rem;
+    font-size: 2rem;
     font-weight: 800;
     color: #ff1e3c;
 }
@@ -28,6 +24,18 @@
     margin-top: 0.4rem;
     margin-bottom: 1.2rem;
     color: #d0d0d0;
+}
+
+.gp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.gp-year-control {
+    width: min(180px, 100%);
 }
 
 .gp-controls {
@@ -72,8 +80,83 @@
     margin: 0.35rem 0;
 }
 
-.gp-error {
+.gp-race-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+}
+
+.gp-race-card {
+    text-align: left;
+    padding: 0.85rem;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.03);
+    color: #fff;
+}
+
+.gp-race-card.selected {
+    border-color: #ff1e3c;
+    box-shadow: 0 0 0 2px rgba(255, 30, 60, 0.28);
+}
+
+.gp-flag {
+    font-size: 1.25rem;
+}
+
+.gp-race-name {
+    font-weight: 700;
+    margin-top: 0.2rem;
+}
+
+.gp-race-meta {
+    color: #d0d0d0;
+    font-size: 0.85rem;
+}
+
+.gp-dashboard-grid {
     margin-top: 1rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.gp-span-2 {
+    grid-column: span 2;
+}
+
+.gp-duel-selectors {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 0.8rem;
+}
+
+.gp-duel-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.gp-stat-card {
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.gp-stat-card h3 {
+    margin-top: 0;
+    margin-bottom: 0.45rem;
+}
+
+.gp-stat-card p {
+    margin: 0.3rem 0;
+    font-size: 0.9rem;
+}
+
+.gp-error {
+    margin: 0 0 1rem;
     border-radius: 8px;
     padding: 0.7rem 0.9rem;
     background-color: rgba(200, 16, 46, 0.2);
@@ -85,8 +168,8 @@
     margin-top: 1.25rem;
 }
 
-.gp-leaderboard h2,
-.gp-leaderboard h3 {
+.gp-panel h2,
+.gp-panel h3 {
     color: #ff4a62;
     margin-bottom: 0.75rem;
 }
@@ -106,6 +189,77 @@
     border-radius: 50%;
     margin-right: 0.4rem;
     border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.gp-history-chart {
+    width: 100%;
+    height: 260px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+}
+
+.gp-legend {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.gp-legend i {
+    display: inline-block;
+    width: 1rem;
+    height: 0.45rem;
+    margin-right: 0.35rem;
+}
+
+.gp-boxplot-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.gp-boxplot-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 90px;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.gp-boxplot-track {
+    position: relative;
+    height: 1rem;
+    background: rgba(255, 255, 255, 0.09);
+    border-radius: 8px;
+}
+
+.gp-boxplot-whisker,
+.gp-boxplot-box,
+.gp-boxplot-median {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.gp-boxplot-whisker {
+    height: 2px;
+}
+
+.gp-boxplot-box {
+    height: 0.75rem;
+    opacity: 0.65;
+    border-radius: 4px;
+}
+
+.gp-boxplot-median {
+    width: 2px;
+    height: 1rem;
+    background: #fff;
+}
+
+.gp-boxplot-label,
+.gp-boxplot-meta {
+    font-size: 0.82rem;
+    color: #d9d9d9;
 }
 
 .gp-chart {
@@ -141,9 +295,28 @@
 }
 
 @media (max-width: 768px) {
+    .gp-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .gp-dashboard-grid,
+    .gp-duel-cards,
+    .gp-duel-selectors {
+        grid-template-columns: 1fr;
+    }
+
+    .gp-span-2 {
+        grid-column: auto;
+    }
+
     .gp-chart-row {
         grid-template-columns: 90px 1fr 70px;
         gap: 0.45rem;
+    }
+
+    .gp-boxplot-row {
+        grid-template-columns: 1fr;
     }
 
     .gp-chart-label,

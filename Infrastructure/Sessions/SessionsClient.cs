@@ -1,57 +1,98 @@
 using F1.Insights.App.Domain.Entities;
 using F1.Insights.App.Infrastructure.ApiClients;
+using System.Text.Json;
 
 namespace F1.Insights.App.Infrastructure.Sessions;
 
 /// <summary>
-/// Retrieves session data from the OpenF1 sessions endpoint.
+/// Retrieves race weekend session schedule data from the Ergast races endpoint.
 /// </summary>
 public sealed class SessionsClient(IApiClient apiClient) : ISessionsClient
 {
-    public async Task<IReadOnlyList<Session>> GetByMeetingKeyAsync(
-        int meetingKey,
-        CancellationToken cancellationToken = default)
-    {
-        var endpoint = $"sessions?meeting_key={meetingKey}";
-
-        return await GetSessionsAsync(endpoint, cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<Session>> GetByCountrySessionNameAndYearAsync(
-        string countryName,
-        string sessionName,
+    public async Task<IReadOnlyList<Session>> GetByYearAndRoundAsync(
         int year,
+        int round,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(countryName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionName);
+        var endpoint = $"{year}/{round}/races/";
+        using var response = await apiClient.GetAsync<JsonDocument>(endpoint, cancellationToken);
 
-        var endpoint =
-            $"sessions?country_name={Uri.EscapeDataString(countryName)}&session_name={Uri.EscapeDataString(sessionName)}&year={year}";
+        if (response is null)
+        {
+            return [];
+        }
 
-        return await GetSessionsAsync(endpoint, cancellationToken);
+        if (!response.RootElement.TryGetProperty("MRData", out var mrData) ||
+            !mrData.TryGetProperty("RaceTable", out var raceTable) ||
+            !raceTable.TryGetProperty("Races", out var races) ||
+            races.ValueKind is not JsonValueKind.Array ||
+            races.GetArrayLength() == 0)
+        {
+            return [];
+        }
+
+        var race = races[0];
+        var raceDate = race.GetProperty("date").GetString();
+        var raceTime = race.TryGetProperty("time", out var raceTimeEl) ? raceTimeEl.GetString() : null;
+
+        var sessions = new Session?[]
+        {
+            CreateSession(race, "FirstPractice", "FP1", "Practice 1", year, round),
+            CreateSession(race, "SecondPractice", "FP2", "Practice 2", year, round),
+            CreateSession(race, "ThirdPractice", "FP3", "Practice 3", year, round),
+            CreateSession(race, "Qualifying", "Qualifying", "Qualifying", year, round),
+            new Session(
+                round,
+                BuildSessionKey(round, "Race"),
+                "Race",
+                "Race",
+                ParseDateTimeOffset(raceDate, raceTime),
+                year)
+        };
+
+        return sessions
+            .Where(static session => session is not null)
+            .Select(static session => session!)
+            .OrderBy(session => session.DateStart)
+            .ToArray();
     }
 
-    private async Task<IReadOnlyList<Session>> GetSessionsAsync(string endpoint, CancellationToken cancellationToken)
+    private static Session? CreateSession(
+        JsonElement race,
+        string propertyName,
+        string label,
+        string sessionType,
+        int year,
+        int round)
     {
-        var response = await apiClient.GetAsync<List<SessionApiResponse>>(endpoint, cancellationToken)
-            ?? [];
+        if (!race.TryGetProperty(propertyName, out var sessionElement))
+        {
+            return null;
+        }
 
-        return [.. response
-            .Select(static session => new Session(
-                session.CircuitKey,
-                session.CircuitShortName,
-                session.CountryCode,
-                session.CountryKey,
-                session.CountryName,
-                session.DateEnd,
-                session.DateStart,
-                session.GmtOffset,
-                session.Location,
-                session.MeetingKey,
-                session.SessionKey,
-                session.SessionName,
-                session.SessionType,
-                session.Year))];
+        var date = sessionElement.GetProperty("date").GetString();
+        var time = sessionElement.TryGetProperty("time", out var timeElement)
+            ? timeElement.GetString()
+            : null;
+
+        return new Session(
+            round,
+            BuildSessionKey(round, label),
+            label,
+            sessionType,
+            ParseDateTimeOffset(date, time),
+            year);
+    }
+
+    private static int BuildSessionKey(int round, string label)
+        => HashCode.Combine(round, label);
+
+    private static DateTimeOffset ParseDateTimeOffset(string? date, string? time)
+    {
+        var combined = string.IsNullOrWhiteSpace(time) ? date : $"{date}T{time}";
+
+        return DateTimeOffset.TryParse(combined, out var parsed)
+            ? parsed
+            : DateTimeOffset.MinValue;
     }
 }

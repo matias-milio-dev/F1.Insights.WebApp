@@ -4,7 +4,7 @@ namespace F1.Insights.App.Features.GrandPrixSelection;
 /// Represents a Grand Prix option displayed to the user.
 /// </summary>
 public sealed record GrandPrixOption(
-    int MeetingKey,
+    int Round,
     string Label,
     string CountryName,
     int Year);

@@ -16,6 +16,15 @@ public interface IGrandPrixSelectionService
     /// Retrieves selectable sessions for a meeting.
     /// </summary>
     Task<IReadOnlyList<SessionOption>> GetSessionOptionsAsync(
-        int meetingKey,
+        int year,
+        int round,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves fastest-lap leaderboard rows for a specific session.
+    /// </summary>
+    Task<IReadOnlyList<DriverFastestLap>> GetFastestLapLeaderboardAsync(
+        int year,
+        int round,
         CancellationToken cancellationToken = default);
 }

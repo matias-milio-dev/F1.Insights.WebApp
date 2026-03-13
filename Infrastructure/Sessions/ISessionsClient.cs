@@ -4,13 +4,8 @@ namespace F1.Insights.App.Infrastructure.Sessions;
 
 public interface ISessionsClient
 {
-    Task<IReadOnlyList<Session>> GetByMeetingKeyAsync(
-        int meetingKey,
-        CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<Session>> GetByCountrySessionNameAndYearAsync(
-        string countryName,
-        string sessionName,
+    Task<IReadOnlyList<Session>> GetByYearAndRoundAsync(
         int year,
+        int round,
         CancellationToken cancellationToken = default);
 }

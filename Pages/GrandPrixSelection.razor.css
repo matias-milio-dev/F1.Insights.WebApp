@@ -80,3 +80,74 @@
     color: #ffd9df;
     border: 1px solid rgba(200, 16, 46, 0.45);
 }
+
+.gp-leaderboard {
+    margin-top: 1.25rem;
+}
+
+.gp-leaderboard h2,
+.gp-leaderboard h3 {
+    color: #ff4a62;
+    margin-bottom: 0.75rem;
+}
+
+.gp-muted {
+    color: #d0d0d0;
+}
+
+.gp-table {
+    margin-bottom: 1rem;
+}
+
+.team-dot {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    margin-right: 0.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.gp-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.gp-chart-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 90px;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.gp-chart-label,
+.gp-chart-time {
+    font-size: 0.85rem;
+    color: #f1f1f1;
+}
+
+.gp-chart-bar {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    height: 0.85rem;
+    overflow: hidden;
+}
+
+.gp-chart-fill {
+    height: 100%;
+    border-radius: 999px;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 768px) {
+    .gp-chart-row {
+        grid-template-columns: 90px 1fr 70px;
+        gap: 0.45rem;
+    }
+
+    .gp-chart-label,
+    .gp-chart-time {
+        font-size: 0.75rem;
+    }
+}

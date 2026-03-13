@@ -7,9 +7,4 @@ public interface IMeetingsClient
     Task<IReadOnlyList<Meeting>> GetByYearAsync(
         int year,
         CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<Meeting>> GetByYearAndCountryAsync(
-        int year,
-        string countryName,
-        CancellationToken cancellationToken = default);
 }

@@ -26,8 +26,8 @@
             <label for="meeting-select">Grand Prix</label>
             <select id="meeting-select"
                     class="form-select"
-                    value="@SelectedMeetingKey"
-                    @onchange="HandleMeetingChanged"
+                    value="@SelectedRound"
+                    @onchange="HandleRoundChanged"
                     disabled="@IsLoadingMeetings">
                 @if (Meetings.Count == 0)
                 {
@@ -37,7 +37,7 @@
                 {
                     @foreach (var meeting in Meetings)
                     {
-                        <option value="@meeting.MeetingKey">@meeting.Label (@meeting.Year)</option>
+                        <option value="@meeting.Round">@meeting.Label (@meeting.Year)</option>
                     }
                 }
             </select>
@@ -75,37 +75,101 @@
                 <p><strong>Session:</strong> @SelectedSession.Label</p>
                 <p><strong>Starts:</strong> @SelectedSession.DateStart.LocalDateTime.ToString("f")</p>
             </section>
+
+            <section class="gp-leaderboard">
+                <h2>Fastest Lap Leaderboard</h2>
+
+                @if (IsLoadingLeaderboard)
+                {
+                    <p class="gp-muted">Loading leaderboard...</p>
+                }
+                else if (FastestLaps.Count == 0)
+                {
+                    <p class="gp-muted">No lap data available for this session.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped gp-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">Driver</th>
+                                    <th scope="col">Lap Time</th>
+                                    <th scope="col">Compound</th>
+                                    <th scope="col">Lap</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (var index = 0; index < FastestLaps.Count; index++)
+                                {
+                                    var lap = FastestLaps[index];
+
+                                    <tr>
+                                        <td>@(index + 1)</td>
+                                        <td>
+                                            <span class="team-dot" style="@GetTeamDotStyle(lap.TeamColourHex)"></span>
+                                            @lap.DriverName
+                                        </td>
+                                        <td>@FormatLapTime(lap.LapTimeSeconds)</td>
+                                        <td>@lap.Compound</td>
+                                        <td>@lap.LapNumber</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>Top 10 Fastest Laps</h3>
+                    <div class="gp-chart">
+                        @foreach (var lap in TopTenFastestLaps)
+                        {
+                            <div class="gp-chart-row">
+                                <div class="gp-chart-label">@lap.DriverName</div>
+                                <div class="gp-chart-bar">
+                                    <div class="gp-chart-fill" style="@GetChartBarStyle(lap)"></div>
+                                </div>
+                                <div class="gp-chart-time">@FormatLapTime(lap.LapTimeSeconds)</div>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
         }
     </div>
 </div>
 
 @code {
     private static readonly IReadOnlyList<int> AvailableYears =
-        Enumerable.Range(2018, DateTime.UtcNow.Year - 2018 + 1)
+        Enumerable.Range(2018, (DateTime.UtcNow.Year - 1) - 2018 + 1)
             .Reverse()
             .ToArray();
 
     private IReadOnlyList<GrandPrixOption> Meetings { get; set; } = [];
     private IReadOnlyList<SessionOption> SessionOptions { get; set; } = [];
+    private IReadOnlyList<DriverFastestLap> FastestLaps { get; set; } = [];
 
     private int SelectedYear { get; set; } = DateTime.UtcNow.AddYears(-1).Year;
-    private int? SelectedMeetingKey { get; set; }
+    private int? SelectedRound { get; set; }
     private int? SelectedSessionKey { get; set; }
 
     private bool IsLoadingMeetings { get; set; }
     private bool IsLoadingSessions { get; set; }
+    private bool IsLoadingLeaderboard { get; set; }
 
     private string? ErrorMessage { get; set; }
 
     private GrandPrixOption? SelectedMeeting =>
-        SelectedMeetingKey is int meetingKey
-            ? Meetings.FirstOrDefault(meeting => meeting.MeetingKey == meetingKey)
+        SelectedRound is int round
+            ? Meetings.FirstOrDefault(meeting => meeting.Round == round)
             : null;
 
     private SessionOption? SelectedSession =>
         SelectedSessionKey is int sessionKey
             ? SessionOptions.FirstOrDefault(session => session.SessionKey == sessionKey)
             : null;
+
+    private IReadOnlyList<DriverFastestLap> TopTenFastestLaps => FastestLaps.Take(10).ToArray();
 
     protected override async Task OnInitializedAsync()
     {
@@ -120,11 +184,11 @@
             IsLoadingMeetings = true;
             Meetings = await GrandPrixSelectionService.GetGrandPrixOptionsAsync(SelectedYear);
 
-            SelectedMeetingKey = Meetings.FirstOrDefault()?.MeetingKey;
+            SelectedRound = Meetings.FirstOrDefault()?.Round;
 
-            if (SelectedMeetingKey is int meetingKey)
+            if (SelectedRound is int round)
             {
-                await LoadSessionsAsync(meetingKey);
+                await LoadSessionsAsync(round);
             }
             else
             {
@@ -153,20 +217,30 @@
         await LoadMeetingsAsync();
     }
 
-    private async Task LoadSessionsAsync(int meetingKey)
+    private async Task LoadSessionsAsync(int round)
     {
         try
         {
             ErrorMessage = null;
             IsLoadingSessions = true;
-            SessionOptions = await GrandPrixSelectionService.GetSessionOptionsAsync(meetingKey);
+            SessionOptions = await GrandPrixSelectionService.GetSessionOptionsAsync(SelectedYear, round);
             SelectedSessionKey = SessionOptions.FirstOrDefault()?.SessionKey;
+
+            if (SelectedRound is int selectedRound)
+            {
+                await LoadLeaderboardAsync(selectedRound);
+            }
+            else
+            {
+                FastestLaps = [];
+            }
         }
         catch
         {
             ErrorMessage = "Unable to load sessions for the selected Grand Prix.";
             SessionOptions = [];
             SelectedSessionKey = null;
+            FastestLaps = [];
         }
         finally
         {
@@ -174,27 +248,106 @@
         }
     }
 
-    private async Task HandleMeetingChanged(ChangeEventArgs eventArgs)
+    private async Task HandleRoundChanged(ChangeEventArgs eventArgs)
     {
-        if (!int.TryParse(eventArgs.Value?.ToString(), out var meetingKey))
+        if (!int.TryParse(eventArgs.Value?.ToString(), out var round))
         {
-            SelectedMeetingKey = null;
+            SelectedRound = null;
             SessionOptions = [];
             SelectedSessionKey = null;
             return;
         }
 
-        SelectedMeetingKey = meetingKey;
-        await LoadSessionsAsync(meetingKey);
+        SelectedRound = round;
+        await LoadSessionsAsync(round);
     }
 
     private Task HandleSessionChanged(ChangeEventArgs eventArgs)
     {
-        if (int.TryParse(eventArgs.Value?.ToString(), out var sessionKey))
+        if (int.TryParse(eventArgs.Value?.ToString(), out var sessionKey)
+            && SelectedRound is int round)
         {
             SelectedSessionKey = sessionKey;
+            return LoadLeaderboardAsync(round);
         }
 
         return Task.CompletedTask;
+    }
+
+    private async Task LoadLeaderboardAsync(int round)
+    {
+        try
+        {
+            ErrorMessage = null;
+            IsLoadingLeaderboard = true;
+            FastestLaps = await GrandPrixSelectionService.GetFastestLapLeaderboardAsync(SelectedYear, round);
+        }
+        catch
+        {
+            ErrorMessage = "Unable to load leaderboard data for the selected session.";
+            FastestLaps = [];
+        }
+        finally
+        {
+            IsLoadingLeaderboard = false;
+        }
+    }
+
+    private static string FormatLapTime(double lapTimeSeconds)
+    {
+        var minutes = (int)(lapTimeSeconds / 60);
+        var seconds = lapTimeSeconds - (minutes * 60);
+
+        return $"{minutes}:{seconds:00.000}";
+    }
+
+    private static string GetTeamDotStyle(string teamColourHex)
+    {
+        var hex = NormalizeHexColour(teamColourHex);
+        return $"background-color:{hex};";
+    }
+
+    private string GetChartBarStyle(DriverFastestLap lap)
+    {
+        var width = CalculateChartWidth(lap.LapTimeSeconds);
+        var colour = NormalizeHexColour(lap.TeamColourHex);
+        return $"width:{width:F2}%;background-color:{colour};";
+    }
+
+    private double CalculateChartWidth(double lapTimeSeconds)
+    {
+        if (TopTenFastestLaps.Count <= 1)
+        {
+            return 100;
+        }
+
+        var fastest = TopTenFastestLaps.Min(lap => lap.LapTimeSeconds);
+        var slowest = TopTenFastestLaps.Max(lap => lap.LapTimeSeconds);
+
+        if (Math.Abs(slowest - fastest) < double.Epsilon)
+        {
+            return 100;
+        }
+
+        var normalized = (slowest - lapTimeSeconds) / (slowest - fastest);
+
+        return 40 + (normalized * 60);
+    }
+
+    private static string NormalizeHexColour(string? rawHex)
+    {
+        if (string.IsNullOrWhiteSpace(rawHex))
+        {
+            return "#FF1E3C";
+        }
+
+        var hex = rawHex.Trim().TrimStart('#');
+
+        if (hex.Length != 6 || !hex.All(Uri.IsHexDigit))
+        {
+            return "#FF1E3C";
+        }
+
+        return $"#{hex}";
     }
 }

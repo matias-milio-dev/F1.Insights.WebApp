@@ -1,20 +1,12 @@
 namespace F1.Insights.App.Domain.Entities;
 
 /// <summary>
-/// Represents a Formula 1 session.
+/// Represents a Formula 1 weekend session option.
 /// </summary>
 public sealed record Session(
-    int CircuitKey,
-    string CircuitShortName,
-    string CountryCode,
-    int CountryKey,
-    string CountryName,
-    DateTimeOffset DateEnd,
-    DateTimeOffset DateStart,
-    string GmtOffset,
-    string Location,
-    int MeetingKey,
+    int Round,
     int SessionKey,
     string SessionName,
     string SessionType,
+    DateTimeOffset DateStart,
     int Year);
